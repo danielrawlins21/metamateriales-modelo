@@ -154,8 +154,9 @@ La forma completa de montar los modelos está en `cargar_modelos()`
 
 ## Autoría y licencia
 
-Modelo desarrollado en el Trabajo Fin de Máster por Marcos (cVAE y pipeline de
-diseño), Juan Carlos (Forward de cuantiles) y Daniel Rawlins (integración y
-publicación).
+Trabajo Fin de Máster de Juan Carlos Fernández, Marcos Sánchez, Daniel Rawlins
+y Ana Kozak. El cVAE y el pipeline de diseño son de Marcos Sánchez, el Forward
+de cuantiles de Juan Carlos Fernández, y la integración y publicación de Daniel
+Rawlins.
 
 Código y pesos bajo licencia [Apache 2.0](LICENSE).
