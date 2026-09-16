@@ -1,0 +1,318 @@
+artifacts:
+  calibracion_lambda: artifacts/calibracion_lambda
+  cvae: artifacts/cvae
+  # Copia explícita del checkpoint final de v5. Solo sirve como referencia o
+  # punto de partida; el futuro checkpoint de v6 se escribirá en artifacts/cvae.
+  cvae_base: artifacts/cvae_base_v5
+  # Entradas heredadas de v4: no se copian ni se modifican.
+  dataset: ../v4-limpio/artifacts/dataset
+  design: artifacts/design
+  encoder: ../v4-limpio/artifacts/encoder
+  forward: ../v4-limpio/artifacts/forward
+  forward_cnn: ../v4-limpio/artifacts/forward_cnn
+  forward_cuantiles: artifacts/forward_cuantiles
+  verificacion_fem: artifacts/verificacion_fem
+  latents: ../v4-limpio/artifacts/latents
+cvae:
+  aceptacion:
+    # `delta_condicion_min` se conserva solo porque barrido_cvae.py lo lee;
+    # el delta quedó jubilado en la Fase 2 (ver metricas_cvae.py).
+    delta_condicion_min: 0.15
+    diversidad_min: 0.1
+    # Ventaja en IoU del gap principal entre generar con el objetivo correcto y
+    # con uno barajado. El barrido midió 0,023 en z16_b20 (0,231 vs 0,208), así
+    # que 0,01 separa señal de ruido sin regalar el criterio.
+    ventaja_min: 0.01
+  barrido:
+    # v4: se barre cond_dim (P8 fue hipotesis, no medida) y beta. `latent_dim`
+    # NO se barre: 16 fue LA palanca de v2.
+    beta:
+    - 5.0
+    - 20.0
+    - 50.0
+    cond_dim:
+    - crudo
+    - 64
+    - 128
+  batch_size: 64
+  # Ganadores del barrido (ver artifacts/cvae/panel.csv): z=16 separa por 3x en
+  # IoU frente a z>=64, y beta=20 da la mayor ventaja sobre la condición barajada.
+  beta: 20.0
+  beta_warmup: 25
+  # P8 — 'crudo' salta el embedding y pasa los 67 tal cual. El embedding
+  # existia "para que la condicion no quede eclipsada por un z de 128"; en v2
+  # z bajo a 16, asi que el motivo ya no existe. Se barre en 6.4.
+  cond_dim: crudo
+  # Enmascarado del encargo: la condición pasa de 45 a 60 (cuarto canal por
+  # slot: "¿el encargo se pronuncia sobre esto?"). Ver src/condicion.py.
+  condition_masking: true
+  decoder_dropout: 0.1
+  # P9 — el termino que compara lo ENTREGADO con lo PEDIDO. Es lo unico de la
+  # perdida que mira la fisica: `reconstruccion + beta*KL` nunca comprueba si
+  # los gaps son los del encargo, y por eso el modelo entrega siempre la moda
+  # del entrenamiento (se PIDE 0,47-1,68 y se ENTREGA 0,68-0,93).
+  # Se juzga una MUESTRA (z ~ N(0,I)), no la reconstruccion: con z del encoder
+  # el modelo puede acertar la fisica sin mirar `c`, que es el fallo a corregir.
+  # Fase 3: lambda=300 fue la menor escala estable que mejoró la pérdida física
+  # en la prueba corta sin degradar reconstrucción ni diversidad (ver D-008).
+  lambda_fisica: 300.0
+  # Entra cuando beta ya llego a su valor final; antes el modelo no esta en su
+  # regimen y solo añadiria ruido.
+  fisica_desde: 25
+  epochs: 150
+  eval_cada: 10
+  eval_n_objetivos: 200
+  latent_dim: 16
+  lr: 0.001
+  # Condicion: 60 (15 ranuras x 4 canales) + 7 (one-hot de la forma) = 67.
+  # La forma NO se le pregunta al cliente: se generan las 7 y se rankean.
+  usar_forma_celda: true
+  masking_max_gaps: 4
+  masking_min_gaps: 1
+  masking_prob: 0.5
+  patience: 30
+  weight_decay: 0.0001
+calibracion_lambda:
+  # Microentrenamientos desde el mismo cVAE estable de v4. Sirven para medir la
+  # escala de la nueva pérdida, no para producir el checkpoint definitivo.
+  checkpoint_base: best_masking.pt
+  # La medida inicial dio equilibrio de gradientes cerca de lambda=2770. El
+  # barrido cubre desde una influencia débil hasta aproximadamente el equilibrio.
+  lambdas: [0.0, 100.0, 300.0, 1000.0, 3000.0]
+  n_train: 96
+  n_val: 48
+  batch_size: 8
+  pasos: 24
+  n_muestras_diversidad: 4
+  max_degradacion_recon: 0.03
+  # Una mejora del 2 % en solo 24 pasos ya indica señal. Además se exige que el
+  # gradiente físico ponderado sea relevante, pero no domine al gradiente base.
+  mejora_fisica_min: 0.02
+  fraccion_gradiente_min: 0.10
+  fraccion_gradiente_max: 0.50
+  diversidad_relativa_min: 0.8
+  seed: 31415
+data:
+  conjuntos:
+    # Hendriks fuera desde el 2026-08-31: 840 eran superceldas simuladas con el
+    # lattice_vectors primitivo y las 180 restantes las unicas sin
+    # uc['linked_bounds']. Se conservan en disco, no se usan.
+    generated:
+      # images_celda, NO images: la de images/ no es la celda unidad
+      # (rasterize.py cizalla y estira al bounding box). Ver problema 4.
+      images_dir: data/images_celda/generated
+      pkl_dir: data/raw/generated
+      sim_dir: data/processed/phase1_generated_bal_ng27
+  # Excluidas a proposito, con nombre y apellidos. NO es un salto silencioso:
+  # el cruce sigue abortando ante cualquier desalineacion que no este aqui.
+  # Estas dos tienen una malla que matplotlib rechaza al triangular
+  # ("Triangulation is invalid"), asi que no tienen imagen en images_celda.
+  # No es degeneracion obvia —cero triangulos de area nula, cero nodos
+  # duplicados, y una p3 sana tiene el mismo span—, y son 2 de 9979: se quitan.
+  excluidas:
+  - p3_hexagonal_222
+  - p3_hexagonal_315
+  images_ae:
+  - data/images_celda/generated
+  # Referencia externa de JC (Hendriks, Ng=54, OMEGA_MAX=2.2079). Solo la usa
+  # 06_verify.py --validate. Se perdieron al reestructurar el bloque `data` en
+  # v1 y sin ellas ese modo no arranca.
+  target_npz: ENGANCHE/vector_objetivo_paramétrico/vector_objetivo_parametrico.npz
+  target_config: ENGANCHE/vector_objetivo_paramétrico/vector_objetivo_parametrico_config.json
+descripcion: 'v6 deriva de v5-forward-cuantiles. Redefinirá el cumplimiento por
+  solapamiento, calibrará frecuencia y anchura del Forward y seleccionará el
+  cVAE por cobertura. La Fase 0 conserva todavía el comportamiento heredado.
+
+  '
+design:
+  batch_size: 32
+  muestras_por_combinacion: 2
+  n_candidatas: 64
+  top_k: 5
+device: cuda
+encoder:
+  aceptacion:
+    max_ratio_invariancia: 0.25
+  augmentation:
+    # Descartado en v1: lograba el latente invariante pero empeoraba el forward.
+    # Y v2/v3 usaron de hecho `best_sin_aug.pt`, asi que el `true` de v3 era un
+    # resto muerto. Se reintentara sobre las imagenes corregidas (P3), pero solo
+    # cuando todo lo demas este ensamblado: hoy meteria una variable de mas.
+    simetrias: false
+    traslaciones: false
+  batch_size: 32
+  channels:
+  - 32
+  - 64
+  - 128
+  - 256
+  dropout: 0.2
+  epochs: 100
+  img_size: 128
+  lambda_consistencia: 1.0
+  latent_dim: 128
+  lr: 0.001
+  patience: 15
+  weight_decay: 0.0001
+  weights: artifacts/encoder/best.pt
+  weights_v0: ENGANCHE/cnn_encoder_congelado_v1_TFM/cnn_autoencoder_pesos.pt
+forward:
+  # Selector común de juez. v6 hereda el modelo de cuantiles; los jueces de v4
+  # permanecen disponibles como controles sin copiar sus artefactos.
+  # Medido sobre el test de v4 el 2026-09-02: el CNN gana en las cinco metricas
+  # (frecuencia MAE 0,227 vs 0,264; error en anchuras 10,8 vs 12,5; pendiente
+  # 0,676 vs 0,595; F1 0,802 vs 0,778), +14,1 % en el criterio que decide.
+  # El MLP se conserva seleccionable para rehacer la comparacion. Ver src/juez.py.
+  activo: cuantiles
+  baselines:
+    knn_k20: 0.1418
+    media_train: 0.1575
+    mlp_v0: 0.1594
+  batch_size: 64
+  cabeza: dividida
+  dropout: 0.3
+  epochs: 300
+  hidden_dims:
+  - 128
+  - 128
+  lr: 0.001
+  patience: 40
+  # P1 — equilibrar la perdida. Con (1,1,1) el reparto real medido era
+  # bce 7,7 % / frecuencia 6,9 % / anchura 85,3 %: el 85 % del entrenamiento se
+  # gastaba en la anchura, que va en escala log y tiene errores numericamente
+  # enormes, y solo el 7 % en la frecuencia, que es donde esta el problema
+  # (error 0,2588 = 4,5x el ancho de un gap).
+  # Estos pesos son 1/reparto normalizado a anchura=1: dejan los tres terminos
+  # aportando ~1/3. Punto de partida, no valor sagrado: hay que volver a medir
+  # el reparto tras entrenar y ajustar si hace falta.
+  # Ganadores del barrido (artifacts/forward/metrics_*.json), sobre el criterio
+  # que importa —error de localizacion en anchuras de gap—: 12,5 frente a 12,8
+  # del juego anterior y 14,6 del (1,1,1) de v0-v3. Reparto medido 25/34/40.
+  peso_bce_presencia: 7.0
+  peso_mse_anchura: 1.0
+  peso_mse_frecuencia: 36.0
+  # La imagen corregida ya no delata la forma de celda (todas son el mismo
+  # cuadrado lleno) y Omega depende de ella. Entrada: 128 + 7 = 135.
+  usar_forma_celda: true
+  weight_decay: 0.001
+forward_cuantiles:
+  # El checkpoint solo contiene state_dict de `ae` y `cabeza`; estos valores
+  # reconstruyen de forma explicita la arquitectura con la que se carga.
+  weights: modelo_cuantiles.pt
+  sha256: 735a4392c19cae8df06195fb793aee64218c7e46233644a02b79ac785c76b569
+  latent_dim: 128
+  channels: [32, 64, 128, 256]
+  dropout_ae: 0.2
+  input_size: 128
+  k_max: 15
+  d_oculta: 512
+  cuantiles: [0.1, 0.5, 0.9]
+  # Supuesto de integración: el script recibido construye el AE sin indicar
+  # padding y procede de la arquitectura anterior a v4. Queda registrado para
+  # que no sea una decisión silenciosa.
+  padding_mode: zeros
+  anchura_min_real: 0.000115
+  anchura_max_real: 2.149158
+  peso_anchura_coste: 3.0
+  exponente_peso_anchura: 1.0
+  usar_peso_logaritmico: false
+  umbral_presencia: 0.5
+  usa_forma_celda: false
+  perdida_cvae:
+    # Reparto heredado de v4 y mantenido fijo durante la Fase 3 para aislar la
+    # calibración de lambda. No se interpreta como un valor universal.
+    peso_bce_presencia: 7.0
+    peso_mse_frecuencia: 36.0
+    peso_mse_anchura_q50_log: 1.0
+  calibracion:
+    # Fase 3: las dos correcciones ensayadas empeoran contacto, cobertura y
+    # MAE de frecuencia tanto en val como en test. Se conserva una identidad
+    # explícita para que la ausencia de corrección sea trazable, no accidental.
+    metodo: sin_correccion
+    activa: false
+    parametros: artifacts/forward_cuantiles/calibracion/comparacion.json
+forward_cnn:
+  augmentation:
+    # Traslaciones de la celda. Fisica exacta, no un parche: un cristal
+    # trasladado es el mismo cristal y su espectro es identico, asi que rodar
+    # la imagen k pixeles deja el target intacto. El periodo es 127 (la columna
+    # 0 y la 127 son el mismo borde), y `rodar()` conserva esa costura.
+    # Sin ella la tirada del 2026-09-02 sobreajusto en la epoca 9: train
+    # 7,42 / val 7,35 -> train 4,30 / val 8,36 en la 29.
+    traslaciones: true
+  # Fase 5b — el experimento sobre P3. NO sustituye a `forward`: escribe en su
+  # propia carpeta y solo si gana se apunta el cVAE hacia el.
+  #
+  # La hipotesis: el forward actual no ve la geometria, ve un latente que el
+  # autoencoder produjo PARA RECONSTRUIR PIXELES. Aqui el tronco conv se entrena
+  # contra el target. Todo lo demas es identico a `forward` a proposito.
+  #
+  # embed_dim = 128 iguala al latente del encoder. Es el control: si se cambia,
+  # el careo deja de aislar "representacion aprendida vs congelada".
+  embed_dim: 128
+  # 1x1 antes de aplanar: 256 canales a 8x8 son 16384, y un Linear de ahi a 128
+  # serian 2,1 M de parametros para 6986 muestras. Con 64 canales el aplanado es
+  # 4096 y el total baja a 1,27 M = 182 por muestra (en v0, 265 los batia un k-NN).
+  canales_1x1: 64
+  hidden_dims:
+  - 128
+  - 128
+  dropout_conv: 0.1
+  dropout_cabeza: 0.3
+  batch_size: 64
+  # Menos epocas que el MLP (300) porque cada una cuesta ~100x mas (~2,8 s):
+  # aqui se propagan gradientes por 128x128 en vez de por un vector de 135.
+  # Aun asi 250, no 120: con traslaciones el modelo deja de memorizar y tarda
+  # mucho mas en tocar techo. Sin ellas paraba sola en la epoca 29.
+  epochs: 250
+  patience: 30
+  lr: 0.001
+  weight_decay: 0.001
+  # LOS MISMOS PESOS QUE EL MLP. Cambiarlos rompe el careo: no sabriamos si la
+  # diferencia viene de la arquitectura o del reparto de la perdida.
+  peso_bce_presencia: 7.0
+  peso_mse_frecuencia: 36.0
+  peso_mse_anchura: 1.0
+  usar_forma_celda: true
+seed: 42
+split:
+  estratificar_por: group
+  heredar_de: pipelines-completo/v0-original/artifacts/dataset/splits.json
+  test: 0.15
+  train: 0.7
+  val: 0.15
+target:
+  # El recortado, no el crudo: sin recortar, el 99 % de las geometrias tiene un
+  # gap artificial entre donde acaban las 16 bandas y OMEGA_MAX, de anchura
+  # media 1,33 frente a los 0,057 de un gap real. Ver artefacto_gap_final.md.
+  archivo: vector_objetivo_recortado.npz
+  campos:
+  - presencia
+  - frecuencia_media
+  - anchura
+  dim: 45
+  k_max: 15
+  log_anchura: true
+  log_epsilon: 0.0001
+  n_campos: 3
+  # p95 del techo de bandas. Recomprobado sobre las 9979 del dataset actual:
+  # p95 = 2,5701, asi que 2,544 sigue siendo valido. Con el 2,2079 de JC se
+  # recortaria el espectro real del 16 % de las geometrias.
+  omega_max: 2.544
+  omega_min: 0.04428011194482277
+  # Forma de celda como one-hot. El ORDEN ES FIJO: cambiarlo invalida cualquier
+  # modelo ya entrenado. Se anade una sola vez al final del vector, no por
+  # ranura: es propiedad de la geometria entera, no de cada gap.
+  formas:
+  - square
+  - hexagonal
+  - rectangular
+  - rhombic
+  - oblique
+  - hexagonal1
+  - hexagonal2
+verify:
+  Ng: 27
+  n_bands: 16
+  top_k: 5
+version: v6-cobertura-calibrada

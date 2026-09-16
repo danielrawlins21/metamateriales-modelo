@@ -1,0 +1,31 @@
+{
+  "estado": "completado",
+  "n_combinaciones": 105,
+  "n_candidatas_brutas": 210,
+  "n_candidatas_unicas": 210,
+  "n_revisadas_hasta_seleccion": 37,
+  "n_descartadas_por_conectividad": 32,
+  "n_malladas_hasta_seleccion": 5,
+  "n_mallables_seleccionadas": 5,
+  "top_k_solicitado": 5,
+  "ranks_seleccionados": [
+    3,
+    17,
+    18,
+    29,
+    37
+  ],
+  "fallos_mallado": {},
+  "fallos_conectividad": {
+    "5_componentes_periodicas": 2,
+    "2_componentes_periodicas": 10,
+    "3_componentes_periodicas": 10,
+    "4_componentes_periodicas": 6,
+    "6_componentes_periodicas": 2,
+    "8_componentes_periodicas": 2
+  },
+  "duracion_segundos": 15.737440586090088,
+  "checkpoint_cvae_epoca": 60,
+  "forward": "cuantiles",
+  "ranking": "cobertura descendente; empates en orden de generación"
+}

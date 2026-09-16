@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "method": "medoide normalizado de lattice_vectors sobre el split train de v4-limpio",
+  "formas": {
+    "hexagonal": {
+      "lattice_vectors": [[1.0, 0.0], [0.5000000000000001, 0.8660254037844386]],
+      "source_stem": "p1_hexagonal_021"
+    },
+    "hexagonal1": {
+      "lattice_vectors": [[1.0, 0.0], [0.5000000000000001, 0.8660254037844386]],
+      "source_stem": "cm_hexagonal1_002"
+    },
+    "hexagonal2": {
+      "lattice_vectors": [[1.0, 0.0], [-0.4999999999999998, 0.8660254037844387]],
+      "source_stem": "cm_hexagonal2_003"
+    },
+    "oblique": {
+      "lattice_vectors": [[1.0, 0.0], [0.21721127199307336, 0.807672758830036]],
+      "source_stem": "p2_oblique_1079"
+    },
+    "rectangular": {
+      "lattice_vectors": [[1.0, 0.0], [7.35383104567556e-17, 1.2009717496988654]],
+      "source_stem": "pg_rectangular_194"
+    },
+    "rhombic": {
+      "lattice_vectors": [[1.0, 0.0], [0.1843080836968585, 0.9828685213618309]],
+      "source_stem": "p1_rhombic_602"
+    },
+    "square": {
+      "lattice_vectors": [[1.0, 0.0], [6.123233995736766e-17, 1.0]],
+      "source_stem": "cm_square_005"
+    }
+  }
+}

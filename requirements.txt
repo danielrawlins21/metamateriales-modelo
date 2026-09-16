@@ -1,0 +1,8 @@
+# Verificado con Python 3.12.3 (CPU). La entrega original usaba Python 3.9 con CUDA 12.8.
+# PyTorch se instala aparte, desde su índice oficial (ver README).
+numpy==1.26.4
+scipy==1.17.1
+PyYAML==6.0.3
+gmsh==4.15.2
+contourpy==1.3.0
+matplotlib==3.11.2
